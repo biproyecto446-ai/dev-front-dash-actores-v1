@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Lock, Eye, EyeOff } from 'lucide-react';
 
-const ACCESS_TOKEN = 'EleC^T0R2l2026';
+const ACCESS_TOKEN = 'Congreso2026*';
 
 const POWER_BI_EMBED_URL =
   'https://app.powerbi.com/view?r=eyJrIjoiYzA3MWFlMzgtZGExOS00MDlkLWE3MzUtZGIyMzg2YzliYWFkIiwidCI6IjFiZmY4NTRkLWUwY2YtNDEwZi1iY2IwLWQ5NDkzNDQzMWU0MyIsImMiOjR9';
