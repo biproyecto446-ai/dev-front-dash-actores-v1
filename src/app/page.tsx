@@ -140,7 +140,7 @@ export default function Page() {
               src="/Logo-LinkTIC.png"
               alt="LinkTIC Logo"
               className="h-12 w-auto mx-auto mb-4"
-              style={{ filter: 'brightness(0)' }}
+             
             />
             <h1 className="text-2xl font-bold text-gray-900">Actores Electorales</h1>
             <p className="text-gray-500 text-sm mt-2">Ingrese el token de acceso para continuar</p>
