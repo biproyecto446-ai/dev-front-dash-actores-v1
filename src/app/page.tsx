@@ -1,16 +1,21 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import { Lock, Eye, EyeOff } from 'lucide-react';
+import { API } from '@/lib/constants';
 
-const ACCESS_TOKEN = 'Congreso2026*';
+const PowerBIDashboard = dynamic(
+  () => import('@/components/PowerBIDashboard').then((m) => m.PowerBIDashboard),
+  { ssr: false }
+);
 
-const POWER_BI_EMBED_URL =
-  'https://app.powerbi.com/view?r=eyJrIjoiYzA3MWFlMzgtZGExOS00MDlkLWE3MzUtZGIyMzg2YzliYWFkIiwidCI6IjFiZmY4NTRkLWUwY2YtNDEwZi1iY2IwLWQ5NDkzNDQzMWU0MyIsImMiOjR9';
+if (typeof window !== 'undefined') {
+  import('@/components/PowerBIDashboard').catch(() => {});
+}
 
-// Imágenes de carga - orden: dev1, dev3, dev2, dev4, dev5, dev6 (amarillo, azul, rojo)
-const loadingImages = [
+const LOADING_IMAGES = [
   '/ImagenDash/dev1.png',
   '/ImagenDash/dev3.png',
   '/ImagenDash/dev2.png',
@@ -18,34 +23,29 @@ const loadingImages = [
   '/ImagenDash/dev5.png',
   '/ImagenDash/dev6.png',
 ];
+const LOGO_IMAGE = '/ImagenDash/LogoAtipica.png';
+/** Sin mínimo: ocultar overlay en cuanto el reporte dispare "loaded". */
+const MIN_LOADING_MS = 0;
 
-const logoImage = '/ImagenDash/LogoAtipica.png';
-
-const MIN_LOADING_TIME_MS = 3000;
-
-function LoadingImage({
-  src,
-  index,
-  isVisible,
-  isLoaded,
-  onLoad,
-}: {
+type LoadingImageProps = {
   src: string;
   index: number;
   isVisible: boolean;
   isLoaded: boolean;
   onLoad: () => void;
-}) {
+};
+
+function LoadingImage({ src, index, isVisible, isLoaded, onLoad }: LoadingImageProps) {
   const floatDuration = 2 + index * 0.3;
   const floatDelay = index * 0.2;
 
   return (
     <div
-      className={`relative w-48 h-48 rounded-2xl overflow-hidden transition-all duration-700 ease-out ${
-        isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-75'
+      className={`relative w-48 h-48 rounded-2xl overflow-hidden transition-all duration-300 ease-out ${
+        isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
       }`}
       style={{
-        transitionDelay: `${index * 150}ms`,
+        transitionDelay: `${index * 50}ms`,
         animation: isVisible ? `float ${floatDuration}s ease-in-out ${floatDelay}s infinite` : 'none',
       }}
     >
@@ -58,7 +58,7 @@ function LoadingImage({
           isLoaded ? 'opacity-100' : 'opacity-0'
         }`}
         onLoad={onLoad}
-        priority={index < 3}
+        priority
       />
     </div>
   );
@@ -71,49 +71,57 @@ export default function Page() {
   const [showToken, setShowToken] = useState(false);
   const [isIframeLoading, setIsIframeLoading] = useState(true);
   const [iframeLoadedAt, setIframeLoadedAt] = useState<number | null>(null);
-  const [visibleImages, setVisibleImages] = useState<boolean[]>(() => new Array(6).fill(false));
-  const [loadedImages, setLoadedImages] = useState<boolean[]>(() => new Array(6).fill(false));
+  const [visibleImages, setVisibleImages] = useState<boolean[]>(() => Array(6).fill(false));
+  const [loadedImages, setLoadedImages] = useState<boolean[]>(() => Array(6).fill(false));
 
-  const handleTokenSubmit = (e: React.FormEvent) => {
+  const handleTokenSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (tokenInput === ACCESS_TOKEN) {
-      setIsAuthenticated(true);
-      setTokenError(false);
-    } else {
+    setTokenError(false);
+    const tokenToSend = (tokenInput ?? '').trim();
+    try {
+      const res = await fetch(API.login, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: tokenToSend }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        setIsAuthenticated(true);
+      } else {
+        setTokenError(true);
+      }
+    } catch {
       setTokenError(true);
     }
   };
 
-  // Mostrar imágenes de carga una por una
   useEffect(() => {
     if (!isAuthenticated) return;
-
-    const showImageSequentially = (index: number) => {
-      if (index >= loadingImages.length) return;
-
+    const showNext = (index: number) => {
+      if (index >= LOADING_IMAGES.length) return;
       setVisibleImages((prev) => {
         const next = [...prev];
         next[index] = true;
         return next;
       });
-
-      setTimeout(() => showImageSequentially(index + 1), 400);
+      setTimeout(() => showNext(index + 1), 120);
     };
-
-    const timer = setTimeout(() => showImageSequentially(0), 300);
-    return () => clearTimeout(timer);
+    const t = setTimeout(() => showNext(0), 80);
+    return () => clearTimeout(t);
   }, [isAuthenticated]);
 
-  // Ocultar loading cuando el iframe cargó y pasó el tiempo mínimo
   useEffect(() => {
     if (iframeLoadedAt === null) return;
-    const elapsed = Date.now() - iframeLoadedAt;
-    const remaining = Math.max(0, MIN_LOADING_TIME_MS - elapsed);
+    const remaining = Math.max(0, MIN_LOADING_MS - (Date.now() - iframeLoadedAt));
     const timer = setTimeout(() => setIsIframeLoading(false), remaining);
     return () => clearTimeout(timer);
   }, [iframeLoadedAt]);
 
-  const handleIframeLoad = () => setIframeLoadedAt(Date.now());
+  const handleIframeLoad = useCallback(() => setIframeLoadedAt(Date.now()), []);
+  const handleDashboardError = useCallback((_msg: string) => {
+    setTokenError(true);
+    setIsIframeLoading(false);
+  }, []);
 
   const handleImageLoad = (index: number) => {
     setLoadedImages((prev) => {
@@ -190,13 +198,12 @@ export default function Page() {
   }
 
   return (
-    <div className="min-h-screen h-screen flex flex-col overflow-hidden bg-[#ffffff]">
-      {/* Indicador de carga con loadingImages - pantalla completa */}
+    <div className="min-h-screen h-screen flex flex-col overflow-hidden bg-white">
       {isIframeLoading && (
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gray-100">
           <div className="mb-6 animate-fadeIn">
             <Image
-              src={logoImage}
+              src={LOGO_IMAGE}
               alt="Logo"
               width={180}
               height={60}
@@ -213,7 +220,7 @@ export default function Page() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            {loadingImages.map((src, index) => (
+            {LOADING_IMAGES.map((src, index) => (
               <div key={index} className={index % 2 === 0 ? '-mt-16' : 'mt-16'}>
                 <LoadingImage
                   src={src}
@@ -229,12 +236,9 @@ export default function Page() {
       )}
 
       <main className="flex-1 min-h-0 w-full relative">
-        <iframe
-          title="Dashboard_General_Produccion - Joha"
-          src={POWER_BI_EMBED_URL}
-          className="h-full w-full border-0"
-          allowFullScreen
-          onLoad={handleIframeLoad}
+        <PowerBIDashboard
+          onLoaded={handleIframeLoad}
+          onError={handleDashboardError}
         />
       </main>
     </div>

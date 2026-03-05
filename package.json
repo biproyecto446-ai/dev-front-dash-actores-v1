@@ -11,6 +11,8 @@
   "dependencies": {
     "lucide-react": "^0.563.0",
     "next": "16.1.4",
+    "powerbi-client": "^2.23.9",
+    "powerbi-client-react": "^2.0.2",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },
